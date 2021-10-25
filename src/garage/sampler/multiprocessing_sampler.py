@@ -76,6 +76,7 @@ class MultiprocessingSampler(Sampler):
                 worker_class=worker_class,
                 worker_args=worker_args)
 
+        self._max_episode_length = max_episode_length
         self._agents = self._factory.prepare_worker_messages(
             agents, cloudpickle.dumps)
         self._envs = self._factory.prepare_worker_messages(envs)
@@ -186,6 +187,11 @@ class MultiprocessingSampler(Sampler):
 
         """
         del itr
+
+        if (num_samples / self._max_episode_length) % len(self._workers) == 0:
+            return self.obtain_exact_episodes((num_samples / self._max_episode_length) / len(self._workers), agent_update, env_update)
+
+
         batches = []
         completed_samples = 0
         self._agent_version += 1
