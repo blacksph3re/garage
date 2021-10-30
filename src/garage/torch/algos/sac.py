@@ -518,6 +518,10 @@ class SAC(RLAlgorithm):
                 episodes
 
         """
+        if self._num_evaluation_episodes == 0:
+            return np.mean(self.episode_rewards) if self.episode_rewards else 0
+
+
         eval_episodes = obtain_evaluation_episodes(
             self.policy,
             self._eval_env,
