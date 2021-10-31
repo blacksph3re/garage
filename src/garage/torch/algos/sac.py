@@ -519,6 +519,7 @@ class SAC(RLAlgorithm):
 
         """
         if self._num_evaluation_episodes == 0:
+            tabular.record('Evaluation/Iteration', epoch)
             return np.mean(self.episode_rewards) if self.episode_rewards else 0
 
 
