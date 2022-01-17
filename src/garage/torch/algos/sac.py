@@ -91,6 +91,7 @@ class SAC(RLAlgorithm):
         spatial_regularization_eps (float): sigma of the normal distribution
             from with spatial regularization observations are drawn,
             in caps this is defined as epsilon_s
+        dr3_regularization_factor (float): The amount of regularization to prevent feature-coadaptation in the q networks
     """
 
     def __init__(
@@ -121,7 +122,9 @@ class SAC(RLAlgorithm):
             use_deterministic_evaluation=True,
             temporal_regularization_factor=0.,
             spatial_regularization_factor=0.,
-            spatial_regularization_eps=1.):
+            spatial_regularization_eps=1.,
+            dr3_regularization_factor=0.,
+            temporal_q_regularization_factor=0.):
 
         self._qf1 = qf1
         self._qf2 = qf2
@@ -151,6 +154,8 @@ class SAC(RLAlgorithm):
         self._spatial_regularization_factor = spatial_regularization_factor
         self._spatial_regularization_dist = torch.distributions.Normal(
             0, spatial_regularization_eps)
+        self._dr3_regularization_factor = dr3_regularization_factor
+        self._temporal_q_regularization_factor = temporal_q_regularization_factor
 
         self.policy = policy
         self.env_spec = env_spec
@@ -380,14 +385,32 @@ class SAC(RLAlgorithm):
         with torch.no_grad():
             alpha = self._get_log_alpha(samples_data).exp()
 
-        q1_pred = self._qf1(obs, actions)
-        q2_pred = self._qf2(obs, actions)
+        q1_pred, phi1 = self._qf1.forward_get_last_layer(obs, actions)
+        q2_pred, phi2 = self._qf2.forward_get_last_layer(obs, actions)
 
         new_next_actions_dist = self.policy(next_obs)[0]
         new_next_actions_pre_tanh, new_next_actions = (
             new_next_actions_dist.rsample_with_pre_tanh_value())
         new_log_pi = new_next_actions_dist.log_prob(
             value=new_next_actions, pre_tanh_value=new_next_actions_pre_tanh)
+
+        if self._dr3_regularization_factor != 0 or self._temporal_q_regularization_factor != 0:
+            q1_next_pred, next_phi1 = self._qf1.forward_get_last_layer(next_obs, new_next_actions.detach())
+            q2_next_pred, next_phi2 = self._qf2.forward_get_last_layer(next_obs, new_next_actions.detach())
+
+            # Calculate the dot product between the last layer activations
+            # Dot product like https://discuss.pytorch.org/t/dot-product-batch-wise/9746
+            dr3_reg1 = self._dr3_regularization_factor * torch.mean(torch.bmm(phi1.view(phi1.shape[0], 1, phi1.shape[1]),
+                                                                              next_phi1.view(phi1.shape[0], phi1.shape[1], 1)))
+            dr3_reg2 = self._dr3_regularization_factor * torch.mean(torch.bmm(phi2.view(phi2.shape[0], 1, phi2.shape[1]),
+                                                                              next_phi2.view(phi2.shape[0], phi2.shape[1], 1)))
+            
+            dr3_reg1 += self._temporal_q_regularization_factor * F.mse_loss(q1_pred, q1_next_pred)
+            dr3_reg2 += self._temporal_q_regularization_factor * F.mse_loss(q2_pred, q2_next_pred)
+        else:
+            dr3_reg1 = torch.tensor(0.)
+            dr3_reg2 = torch.tensor(0.)
+
 
         target_q_values = torch.min(
             self._target_qf1(next_obs, new_next_actions),
@@ -396,8 +419,8 @@ class SAC(RLAlgorithm):
         with torch.no_grad():
             q_target = rewards * self._reward_scale + (
                 1. - terminals) * self._discount * target_q_values
-        qf1_loss = F.mse_loss(q1_pred.flatten(), q_target)
-        qf2_loss = F.mse_loss(q2_pred.flatten(), q_target)
+        qf1_loss = F.mse_loss(q1_pred.flatten(), q_target) - dr3_reg1
+        qf2_loss = F.mse_loss(q2_pred.flatten(), q_target) - dr3_reg2
 
         return qf1_loss, qf2_loss
 

@@ -123,6 +123,7 @@ class PathBuffer:
         """
         idx = np.random.randint(self._transitions_stored, size=batch_size)
         return {key: buf_arr[idx] for key, buf_arr in self._buffer.items()}
+        # TODO sample next action as well
 
     def sample_timesteps(self, batch_size):
         """Sample a batch of timesteps from the buffer.

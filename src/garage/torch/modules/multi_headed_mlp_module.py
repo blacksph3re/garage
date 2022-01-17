@@ -149,3 +149,10 @@ class MultiHeadedMLPModule(nn.Module):
             x = layer(x)
 
         return [output_layer(x) for output_layer in self._output_layers]
+
+
+    def forward_get_last_layer(self, input_val):
+        x = input_val
+        for layer in self._layers:
+            x = layer(x)
+        return [output_layer(x) for output_layer in self._output_layers], x

@@ -71,6 +71,10 @@ class MLPModule(MultiHeadedMLPModule):
 
         """
         return super().forward(input_value)[0]
+    
+    def forward_get_last_layer(self, input_value):
+        out, last_layer = super().forward_get_last_layer(input_value)
+        return out[0], last_layer
 
     @property
     def output_dim(self):

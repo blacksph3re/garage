@@ -28,6 +28,9 @@ class ContinuousMLPQFunction(MLPModule):
                            input_dim=self._obs_dim + self._action_dim,
                            output_dim=1,
                            **kwargs)
+    
+    def forward_get_last_layer(self, observations, actions):
+        return super().forward_get_last_layer(torch.cat([observations, actions], 1))
 
     # pylint: disable=arguments-differ
     def forward(self, observations, actions):
