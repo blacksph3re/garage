@@ -419,8 +419,8 @@ class SAC(RLAlgorithm):
         with torch.no_grad():
             q_target = rewards * self._reward_scale + (
                 1. - terminals) * self._discount * target_q_values
-        qf1_loss = F.mse_loss(q1_pred.flatten(), q_target) - dr3_reg1
-        qf2_loss = F.mse_loss(q2_pred.flatten(), q_target) - dr3_reg2
+        qf1_loss = F.mse_loss(q1_pred.flatten(), q_target) + dr3_reg1
+        qf2_loss = F.mse_loss(q2_pred.flatten(), q_target) + dr3_reg2
 
         return qf1_loss, qf2_loss
 
